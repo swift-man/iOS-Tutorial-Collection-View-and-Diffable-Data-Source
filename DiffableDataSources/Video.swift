@@ -28,7 +28,7 @@
 
 import UIKit
 
-class Video {
+class Video: Hashable {
   var id = UUID()
   var title: String
   var thumbnail: UIImage?
@@ -40,6 +40,14 @@ class Video {
     self.thumbnail = thumbnail
     self.lessonCount = lessonCount
     self.link = link
+  }
+  
+  static func == (lhs: Video, rhs: Video) -> Bool {
+    lhs.id == rhs.id
+  }
+  
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(id)
   }
 }
 

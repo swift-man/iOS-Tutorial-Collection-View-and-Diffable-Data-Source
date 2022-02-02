@@ -29,10 +29,14 @@
 import UIKit
 import SafariServices
 
+typealias DataSource = UICollectionViewDiffableDataSource<Section, Video>
+typealias Snapshot = NSDiffableDataSourceSnapshot<Section, Video>
+
 class VideosViewController: UICollectionViewController {
   // MARK: - Properties
-  private var videoList = Video.allVideos
+  private var sections = Section.allSections
   private var searchController = UISearchController(searchResultsController: nil)
+  private lazy var dataSource = makeDataSource()
   
   // MARK: - Value Types
   
@@ -42,31 +46,55 @@ class VideosViewController: UICollectionViewController {
     view.backgroundColor = .white
     configureSearchController()
     configureLayout()
+    
+    applySnapshot(animatingDifferrences: false)
   }
   
   // MARK: - Functions
+  func applySnapshot(animatingDifferrences: Bool = true) {
+    var snapshot = Snapshot()
+    snapshot.appendSections(sections)
+    sections.forEach { section in
+      snapshot.appendItems(section.videos, toSection: section)
+    }
+    dataSource.apply(snapshot, animatingDifferences: animatingDifferrences)
+  }
 }
 
 // MARK: - UICollectionViewDataSource
 extension VideosViewController {
-  override func collectionView(
-    _ collectionView: UICollectionView,
-    numberOfItemsInSection section: Int
-  ) -> Int {
-    return videoList.count
+  func makeDataSource() -> DataSource {
+    // 1
+    // You create a dataSource, passing in collectionView and a cellProvider callback.
+    let dataSource = DataSource(
+      collectionView: collectionView) { (collectionView, indexPath, video) -> UICollectionViewCell? in
+        // 2
+        // Inside the cellProvider callback, you return a VideoCollectionViewCell. The code you write in this function is the same as you’re used to seeing in
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "VideoCollectionViewCell", for: indexPath) as? VideoCollectionViewCell
+        cell?.video = video
+        return cell
+      }
+    return dataSource
   }
   
-  override func collectionView(
-    _ collectionView: UICollectionView,
-    cellForItemAt indexPath: IndexPath
-  ) -> UICollectionViewCell {
-    let video = videoList[indexPath.row]
-    guard let cell = collectionView.dequeueReusableCell(
-      withReuseIdentifier: "VideoCollectionViewCell",
-      for: indexPath) as? VideoCollectionViewCell else { fatalError() }
-    cell.video = video
-    return cell
-  }
+//  override func collectionView(
+//    _ collectionView: UICollectionView,
+//    numberOfItemsInSection section: Int
+//  ) -> Int {
+//    return videoList.count
+//  }
+  
+//  override func collectionView(
+//    _ collectionView: UICollectionView,
+//    cellForItemAt indexPath: IndexPath
+//  ) -> UICollectionViewCell {
+//    let video = videoList[indexPath.row]
+//    guard let cell = collectionView.dequeueReusableCell(
+//      withReuseIdentifier: "VideoCollectionViewCell",
+//      for: indexPath) as? VideoCollectionViewCell else { fatalError() }
+//    cell.video = video
+//    return cell
+//  }
 }
 
 // MARK: - UICollectionViewDelegate
@@ -75,7 +103,7 @@ extension VideosViewController {
     _ collectionView: UICollectionView,
     didSelectItemAt indexPath: IndexPath
   ) {
-    let video = videoList[indexPath.row]
+    guard let video = dataSource.itemIdentifier(for: indexPath) else { return }
     guard let link = video.link else {
       print("Invalid link")
       return
@@ -88,20 +116,27 @@ extension VideosViewController {
 // MARK: - UISearchResultsUpdating Delegate
 extension VideosViewController: UISearchResultsUpdating {
   func updateSearchResults(for searchController: UISearchController) {
-    videoList = filteredVideos(for: searchController.searchBar.text)
-    collectionView.reloadData()
+    sections = filteredSections(for: searchController.searchBar.text)
+    applySnapshot()
   }
   
-  func filteredVideos(for queryOrNil: String?) -> [Video] {
-    let videos = Video.allVideos
+  func filteredSections(for queryOrNil: String?) -> [Section] {
+    let sections = Section.allSections
     guard
       let query = queryOrNil,
       !query.isEmpty
       else {
-        return videos
+        return sections
     }
-    return videos.filter {
-      return $0.title.lowercased().contains(query.lowercased())
+    return sections.filter { section in
+      var matches = section.title.lowercased().contains(query.lowercased())
+      for video in section.videos {
+        if video.title.lowercased().contains(query.lowercased()) {
+          matches = true
+          break
+        }
+      }
+      return matches
     }
   }
   
